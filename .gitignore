@@ -1,0 +1,12 @@
+# Environment variables (jangan di-commit)
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+env/

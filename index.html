@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPEML PoC — Translasi & Spellcheck Bahasa Minang</title>
+  <meta name="description"
+    content="Portal interaktif untuk penerjemahan dan pemeriksaan ejaan Bahasa Minangkabau ke Bahasa Indonesia menggunakan algoritma NLP modern." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    /* Smooth transitions for sections */
+    .view-section {
+      transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+    }
+
+    .view-section.hidden {
+      display: none !important;
+      opacity: 0;
+      transform: translateY(8px);
+    }
+
+    .view-section.visible {
+      display: block !important;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Algorithm select radio styling */
+    .algo-pill input[type="radio"] {
+      display: none;
+    }
+
+    .algo-pill.selected {
+      background-color: #e0e7ff;
+      color: #4f46e5;
+      border-color: #818cf8;
+    }
+
+    /* Diff highlights in spellchecker */
+    .diff-highlight {
+      display: inline-block;
+    }
+
+    /* Textarea vertical resize only */
+    textarea {
+      resize: vertical;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+
+<body
+  class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white relative">
+
+  <!-- Background decorative blur meshes -->
+  <div
+    class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[450px] bg-gradient-to-br from-indigo-100/50 via-violet-100/30 to-transparent rounded-full filter blur-3xl pointer-events-none -z-10">
+  </div>
+
+  <!-- Header & Navbar -->
+  <header class="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-slate-200/80">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3 cursor-pointer" onclick="switchView('dashboard')">
+        <div>
+          <span class="text-lg font-extrabold text-slate-900 tracking-tight font-display flex items-center gap-2">
+            SPEML POC
+          </span>
+          <p class="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Translasi & Spellcheck</p>
+        </div>
+      </div>
+
+      <!-- Navigation Menu -->
+      <nav class="hidden md:flex items-center gap-1">
+        <button id="nav-link-dashboard" onclick="switchView('dashboard')"
+          class="nav-link px-3 py-2 text-sm font-semibold text-indigo-600 bg-indigo-50/70 rounded-lg transition-colors flex items-center gap-1.5">
+          <i class="fa-solid fa-house text-xs"></i>
+          Dashboard
+        </button>
+        <button id="nav-link-spellchecker" onclick="switchView('spellchecker')"
+          class="nav-link px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors flex items-center gap-1.5">
+          <i class="fa-solid fa-spell-check text-xs"></i>
+          Spellchecker
+        </button>
+        <button id="nav-link-translation" onclick="switchView('translation')"
+          class="nav-link px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors flex items-center gap-1.5">
+          <i class="fa-solid fa-language text-sm"></i>
+          Translation
+        </button>
+        <button id="nav-link-combo" onclick="switchView('combo')"
+          class="nav-link px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors flex items-center gap-1.5">
+          <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+          Combo Pipeline
+        </button>
+      </nav>
+
+      <!-- Mobile Nav Trigger -->
+      <div class="md:hidden flex items-center">
+        <select id="mobile-nav-select" onchange="switchView(this.value)"
+          class="bg-slate-100 border-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none">
+          <option value="dashboard">Dashboard</option>
+          <option value="spellchecker">Spellchecker</option>
+          <option value="translation">Translation</option>
+          <option value="combo">Combo Pipeline</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-6 py-8">
+
+    <!-- ==================== DASHBOARD VIEW ==================== -->
+    <section id="view-dashboard" class="view-section visible">
+      <!-- Hero Banner -->
+      <div
+        class="relative bg-gradient-to-r from-violet-600 via-indigo-600 to-indigo-800 rounded-3xl p-8 md:p-12 text-white shadow-xl overflow-hidden mb-8">
+        <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none">
+        </div>
+        <div class="absolute right-1/3 top-1/4 w-32 h-32 bg-indigo-500/30 rounded-full blur-xl pointer-events-none">
+        </div>
+        <div class="relative z-10 max-w-2xl">
+          <span
+            class="bg-indigo-500/30 text-indigo-100 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 inline-block">Platform
+            Terjemahan & Ejaan NLP</span>
+          <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight font-display mb-4">Portal Bahasa Minangkabau
+          </h2>
+          <p class="text-indigo-100 text-sm md:text-base leading-relaxed mb-6">
+            Perbaiki kesalahan pengetikan dan terjemahkan Bahasa Minangkabau ke Bahasa Indonesia dengan cepat, didukung
+            oleh data kosakata luas dan algoritma perbaikan string cerdas.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            <button onclick="switchView('translation')"
+              class="bg-white text-indigo-700 hover:bg-indigo-50 font-semibold px-5 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2 text-xs">
+              Mulai Menerjemahkan
+              <i class="fa-solid fa-arrow-right text-xs"></i>
+            </button>
+            <button onclick="switchView('spellchecker')"
+              class="bg-indigo-500/30 hover:bg-indigo-500/40 border border-white/20 text-white font-medium px-5 py-2.5 rounded-xl transition-all text-xs">
+              Pemeriksa Ejaan
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature Grid Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Card 1: Spellchecker -->
+        <div
+          class="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div
+              class="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+              <i class="fa-solid fa-spell-check text-lg"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 font-display mb-2">Spellchecker Minang</h3>
+            <p class="text-xs text-slate-500 leading-relaxed mb-4">Deteksi kata typo dalam bahasa Minangkabau dan
+              perbaiki secara otomatis menggunakan algoritma String Distance cerdas.</p>
+          </div>
+          <button onclick="switchView('spellchecker')"
+            class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 mt-auto w-fit">
+            Buka Spellchecker <span class="group-hover:translate-x-1 transition-transform inline-block">&rarr;</span>
+          </button>
+        </div>
+
+        <!-- Card 2: Translation -->
+        <div
+          class="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div
+              class="w-11 h-11 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+              <i class="fa-solid fa-language text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 font-display mb-2">Penerjemah Bahasa</h3>
+            <p class="text-xs text-slate-500 leading-relaxed mb-4">Penerjemahan kalimat bahasa Minang ke Bahasa
+              Indonesia secara langsung. Sederhana, cepat, dan mudah disalin.</p>
+          </div>
+          <button onclick="switchView('translation')"
+            class="text-xs font-semibold text-violet-600 hover:text-violet-700 flex items-center gap-1 mt-auto w-fit">
+            Mulai Terjemahan <span class="group-hover:translate-x-1 transition-transform inline-block">&rarr;</span>
+          </button>
+        </div>
+
+        <!-- Card 3: Combo Pipeline -->
+        <div
+          class="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div
+              class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+              <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 font-display mb-2">Combo Pipeline</h3>
+            <p class="text-xs text-slate-500 leading-relaxed mb-4">Alur ganda terintegrasi. Perbaiki dahulu ejaan teks
+              Minang yang salah ketik, lalu terjemahkan untuk hasil kualitas maksimal.</p>
+          </div>
+          <button onclick="switchView('combo')"
+            class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 mt-auto w-fit">
+            Coba Combo Tool <span class="group-hover:translate-x-1 transition-transform inline-block">&rarr;</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Word of the Day & Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Word of the Day widget (2 cols on md) -->
+        <div
+          class="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-sm md:col-span-2 relative overflow-hidden">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <span
+                class="text-[9px] font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md">Kosa
+                Kata Minang Hari Ini</span>
+              <h4 id="wotd-word"
+                class="text-3xl font-extrabold text-slate-900 font-display mt-2 transition-all duration-300">...</h4>
+              <p id="wotd-type" class="text-xs text-slate-400 italic mt-0.5 transition-all duration-300">...</p>
+            </div>
+            <button onclick="randomizeWotd()"
+              class="text-[11px] text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-150 rounded-xl px-3 py-1.5 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 bg-white">
+              <i class="fa-solid fa-shuffle text-[10px]"></i>
+              Acak Kata
+            </button>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wide">Arti (Bahasa
+                Indonesia)</span>
+              <p id="wotd-meaning" class="text-sm font-semibold text-slate-800 transition-all duration-300 mt-1">...</p>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wide">Contoh Penggunaan</span>
+              <p id="wotd-example" class="text-sm text-slate-700 italic transition-all duration-300 mt-1">...</p>
+              <p id="wotd-translation" class="text-xs text-slate-400 transition-all duration-300 mt-0.5">...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Statistics -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-sm flex flex-col justify-between">
+          <h4 class="text-sm font-bold text-slate-800 font-display mb-4">Informasi Database</h4>
+          <div class="space-y-3.5">
+            <div class="flex items-center justify-between border-b border-slate-50 pb-2">
+              <span class="text-xs text-slate-500">Kosakata Terindex</span>
+              <span class="text-xs font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">31.414 entri</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-slate-50 pb-2">
+              <span class="text-xs text-slate-500">Metode Spellcheck</span>
+              <span class="text-xs font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">3 Algoritma</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-slate-50 pb-2">
+              <span class="text-xs text-slate-500">Arah Terjemahan</span>
+              <span class="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">Minang &rarr;
+                Indo</span>
+            </div>
+            <div class="flex items-center justify-between pb-1">
+              <span class="text-xs text-slate-500">Rata-rata Respon</span>
+              <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">&lt; 15
+                milidetik</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SPELLCHECKER VIEW ==================== -->
+    <section id="view-spellchecker" class="view-section hidden">
+      <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900 tracking-tight font-display">Spellchecker Bahasa Minangkabau</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Analisis kata typo dan perbaiki berdasarkan kemiripan karakter.</p>
+        </div>
+
+        <!-- Algoritma Pilihan -->
+        <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl w-fit">
+          <label
+            class="algo-pill selected px-3 py-1.5 text-xs font-semibold border border-transparent rounded-lg cursor-pointer transition-all flex items-center gap-1 select-none">
+            <input type="radio" name="spell-algorithm" value="levenshtein" checked onchange="handleAlgoChange(this)" />
+            Levenshtein
+          </label>
+          <label
+            class="algo-pill px-3 py-1.5 text-xs font-semibold border border-transparent rounded-lg cursor-pointer transition-all flex items-center gap-1 select-none">
+            <input type="radio" name="spell-algorithm" value="jaro-winkler" onchange="handleAlgoChange(this)" />
+            Jaro-Winkler
+          </label>
+          <label
+            class="algo-pill px-3 py-1.5 text-xs font-semibold border border-transparent rounded-lg cursor-pointer transition-all flex items-center gap-1 select-none">
+            <input type="radio" name="spell-algorithm" value="norvig" onchange="handleAlgoChange(this)" />
+            Norvig
+          </label>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Input Panel -->
+        <div class="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <label for="spell-input"
+              class="text-[10px] font-bold text-slate-400 block uppercase tracking-wide mb-2">Teks Minangkabau</label>
+            <textarea id="spell-input" rows="8"
+              placeholder="Masukkan kata atau kalimat bahasa Minang di sini (contoh: Adolahh marupokan saurang pandiri...)"
+              class="w-full text-sm text-slate-800 placeholder-slate-400 bg-slate-50/50 border border-slate-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+              oninput="updateCharCount('spell-input', 'spell-count')"></textarea>
+          </div>
+          <div class="flex justify-between items-center mt-4">
+            <span id="spell-count" class="text-xs text-slate-400">0 karakter &nbsp;&middot;&nbsp; 0 kata</span>
+            <div class="flex gap-2">
+              <button onclick="clearText('spell-input', 'spell-count')"
+                class="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-semibold transition-colors">
+                Hapus
+              </button>
+              <button id="spell-submit-btn" onclick="runSpellcheck()"
+                class="px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-150 transition-all flex items-center gap-1.5">
+                Periksa Ejaan
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Output Panel -->
+        <div
+          class="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative min-h-[280px]">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="text-[10px] font-bold text-slate-400 block uppercase tracking-wide">Hasil & Analisis
+                Perbaikan</label>
+              <div
+                class="flex items-center gap-1 text-[10px] bg-slate-100 text-slate-500 px-2.5 py-0.5 rounded-full font-medium"
+                id="spell-status-badge">
+                Menunggu input...
+              </div>
+            </div>
+
+            <!-- Beautiful Diff Display -->
+            <div id="spell-diff-container"
+              class="w-full min-h-[140px] text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl p-4 overflow-y-auto leading-relaxed whitespace-pre-wrap">
+              <span class="text-slate-400 italic">Hasil visualisasi perbaikan ejaan akan tampil di sini...</span>
+            </div>
+
+            <!-- Clean output text input for easy copying -->
+            <input type="hidden" id="spell-clean-output" value="" />
+          </div>
+
+          <div class="flex justify-end gap-2 mt-4">
+            <button id="spell-copy-btn" disabled onclick="copyResult('spell-clean-output')"
+              class="px-4 py-1.5 border border-slate-200 bg-slate-50 text-slate-400 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+              <i class="fa-regular fa-copy text-xs"></i>
+              Salin Teks Bersih
+            </button>
+          </div>
+
+          <!-- Loading Overlay -->
+          <div id="spell-loading"
+            class="hidden absolute inset-0 bg-white/80 rounded-2xl flex items-center justify-center transition-opacity duration-200">
+            <div class="flex items-center gap-3 text-slate-600 text-sm font-medium">
+              <div class="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+              Sedang menganalisis teks...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TRANSLATION VIEW ==================== -->
+    <section id="view-translation" class="view-section hidden">
+      <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900 tracking-tight font-display">Penerjemah Bahasa Minangkabau</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Terjemahkan teks dari Bahasa Minangkabau ke Bahasa Indonesia dengan
+            cepat.</p>
+        </div>
+
+        <!-- LoRA Model Selection -->
+        <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl w-fit">
+          <label
+            class="algo-pill selected px-3 py-1.5 text-xs font-semibold border border-transparent rounded-lg cursor-pointer transition-all flex items-center gap-1 select-none">
+            <input type="radio" name="translate-config" value="higher" checked onchange="handleAlgoChange(this)" />
+            Higher LoRA Config
+          </label>
+          <label
+            class="algo-pill px-3 py-1.5 text-xs font-semibold border border-transparent rounded-lg cursor-pointer transition-all flex items-center gap-1 select-none">
+            <input type="radio" name="translate-config" value="lower" onchange="handleAlgoChange(this)" />
+            Lower LoRA Config
+          </label>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Input Panel -->
+        <div class="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wide">Bahasa Sumber
+                (Minangkabau)</span>
+            </div>
+            <textarea id="trans-input" rows="10" placeholder="Masukkan teks dalam Bahasa Minangkabau di sini..."
+              class="w-full text-sm text-slate-800 placeholder-slate-400 bg-slate-50/50 border border-slate-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+              oninput="updateCharCount('trans-input', 'trans-count')"></textarea>
+          </div>
+          <div class="flex justify-between items-center mt-4">
+            <span id="trans-count" class="text-xs text-slate-400">0 karakter &nbsp;&middot;&nbsp; 0 kata</span>
+            <div class="flex gap-2">
+              <button onclick="clearText('trans-input', 'trans-count')"
+                class="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-semibold transition-colors">
+                Hapus
+              </button>
+              <button id="trans-submit-btn" onclick="runTranslation()"
+                class="px-6 py-1.5 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white rounded-xl text-xs font-semibold shadow-md shadow-violet-150 transition-all flex items-center gap-1.5">
+                Terjemahkan
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Output Panel -->
+        <div
+          class="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative min-h-[320px]">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[10px] font-bold text-slate-400 block uppercase tracking-wide">Bahasa Target
+                (Indonesia)</span>
+              <div
+                class="flex items-center gap-1 text-[10px] bg-slate-100 text-slate-500 px-2.5 py-0.5 rounded-full font-medium"
+                id="trans-status-badge">
+                Menunggu terjemahan...
+              </div>
+            </div>
+            <textarea id="trans-output" readonly rows="10" placeholder="Hasil terjemahan akan muncul di sini..."
+              class="w-full text-sm text-slate-800 placeholder-slate-400 bg-slate-50/50 border border-slate-200 rounded-xl p-4 focus:outline-none cursor-default"></textarea>
+          </div>
+          <div class="flex justify-end gap-2 mt-4">
+            <button id="trans-copy-btn" disabled onclick="copyResult('trans-output')"
+              class="px-4 py-1.5 border border-slate-200 bg-slate-50 text-slate-400 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+              <i class="fa-regular fa-copy text-xs"></i>
+              Salin Terjemahan
+            </button>
+          </div>
+
+          <!-- Loading Overlay -->
+          <div id="trans-loading"
+            class="hidden absolute inset-0 bg-white/80 rounded-2xl flex items-center justify-center transition-opacity duration-200">
+            <div class="flex items-center gap-3 text-slate-600 text-sm font-medium">
+              <div class="w-5 h-5 border-2 border-violet-200 border-t-violet-600 rounded-full animate-spin"></div>
+              Sedang menerjemahkan...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== COMBO VIEW ==================== -->
+    <section id="view-combo" class="view-section hidden">
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-slate-900 tracking-tight font-display">Combo Pipeline (Spellcheck +
+          Translate)</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Alur optimasi. Teks Minang yang salah ketik akan dikoreksi dahulu
+          sebelum diterjemahkan.</p>
+      </div>
+
+      <!-- Pipeline Steps Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
+        <!-- Connecting Arrow lines background (only visible on large screens) -->
+        <div class="hidden lg:block absolute top-[130px] left-[32%] w-[4%] h-[2px] bg-slate-300 pointer-events-none">
+        </div>
+        <div class="hidden lg:block absolute top-[130px] left-[66%] w-[4%] h-[2px] bg-slate-300 pointer-events-none">
+        </div>
+
+        <!-- STEP 1: Input Teks Minang (Kotor) -->
+        <div class="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-3">
+              <span
+                class="w-6 h-6 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center">1</span>
+              <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Teks Minangkabau (Asli)</span>
+            </div>
+            <textarea id="combo-input" rows="8"
+              placeholder="Ketik teks Minangkabau di sini (dengan typo, misal: 'Denndang nan sabuahh')"
+              class="w-full text-sm text-slate-800 placeholder-slate-400 bg-slate-50/50 border border-slate-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+              oninput="updateCharCount('combo-input', 'combo-count')"></textarea>
+          </div>
+          <div class="flex justify-between items-center mt-4">
+            <span id="combo-count" class="text-xs text-slate-400">0 karakter</span>
+            <div class="flex gap-2">
+              <button onclick="clearText('combo-input', 'combo-count')"
+                class="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-semibold transition-colors">
+                Hapus
+              </button>
+              <button id="combo-submit-btn" onclick="runComboPipeline()"
+                class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-semibold shadow-md shadow-emerald-150 transition-all">
+                Proses Combo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: Spellchecker Diff Output -->
+        <div
+          class="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative min-h-[250px]">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span
+                  class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center">2</span>
+                <span class="text-[10px] font-bold text-indigo-700 uppercase tracking-wide">Koreksi Ejaan</span>
+              </div>
+              <div id="combo-spell-badge"
+                class="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">Ready</div>
+            </div>
+
+            <!-- Dropdown Pemilihan Algoritma Spellcheck -->
+            <div class="mb-3 flex justify-between items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100/80">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-1 select-none">Algoritma:</span>
+              <select id="combo-algorithm"
+                class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all cursor-pointer">
+                <option value="levenshtein">Levenshtein</option>
+                <option value="jaro-winkler">Jaro-Winkler</option>
+                <option value="norvig">Norvig</option>
+              </select>
+            </div>
+
+            <div id="combo-diff-container"
+              class="w-full min-h-[140px] text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl p-4 overflow-y-auto leading-relaxed whitespace-pre-wrap">
+              <span class="text-slate-400 italic">Hasil perbaikan kata typo akan di-highlight di sini...</span>
+            </div>
+          </div>
+
+          <div class="flex justify-end mt-4">
+            <button id="combo-spell-copy-btn" disabled onclick="copyResult('combo-clean-output')"
+              class="px-3.5 py-1.5 border border-slate-200 text-slate-400 bg-slate-50 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-1.5">
+              <i class="fa-regular fa-copy text-xs"></i>
+              Salin Bersih
+            </button>
+            <input type="hidden" id="combo-clean-output" value="" />
+          </div>
+
+          <!-- Loading Overlay Step 2 -->
+          <div id="combo-loading-spell"
+            class="hidden absolute inset-0 bg-white/80 rounded-2xl flex items-center justify-center transition-opacity duration-200">
+            <div class="flex flex-col items-center gap-2 text-slate-600 text-xs font-medium">
+              <div class="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+              Memeriksa ejaan...
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: Final Translation Output -->
+        <div
+          class="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative min-h-[250px]">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span
+                  class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center">3</span>
+                <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Terjemahan Akhir</span>
+              </div>
+              <div id="combo-trans-badge"
+                class="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">Ready</div>
+            </div>
+
+            <!-- Dropdown Pemilihan Model Terjemahan -->
+            <div class="mb-3 flex justify-between items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100/80">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide px-1 select-none">Model LoRA:</span>
+              <select id="combo-translate-config"
+                class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all cursor-pointer">
+                <option value="higher">Higher LoRA Config</option>
+                <option value="lower">Lower LoRA Config</option>
+              </select>
+            </div>
+
+            <textarea id="combo-trans-output" readonly rows="8"
+               placeholder="Hasil terjemahan teks bersih akan muncul di sini..."
+               class="w-full text-sm text-slate-800 placeholder-slate-400 bg-slate-50/50 border border-slate-200 rounded-xl p-4 focus:outline-none cursor-default"></textarea>
+          </div>
+
+          <div class="flex justify-end mt-4">
+            <button id="combo-trans-copy-btn" disabled onclick="copyResult('combo-trans-output')"
+              class="px-3.5 py-1.5 border border-slate-200 text-slate-400 bg-slate-50 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-1.5">
+              <i class="fa-regular fa-copy text-xs"></i>
+              Salin Hasil
+            </button>
+          </div>
+
+          <!-- Loading Overlay Step 3 -->
+          <div id="combo-loading-trans"
+            class="hidden absolute inset-0 bg-white/80 rounded-2xl flex items-center justify-center transition-opacity duration-200">
+            <div class="flex flex-col items-center gap-2 text-slate-600 text-xs font-medium">
+              <div class="w-5 h-5 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+              Menerjemahkan teks bersih...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-200/80 bg-white/80 mt-12">
+    <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p class="text-xs text-slate-400 text-center sm:text-left">
+        &copy; 2026 SPEMP POC. Dibuat sebagai Proof of Concept dari Project SPEML.
+      </p>
+      <div class="flex gap-4 text-xs text-slate-400 font-medium">
+        <span>Bahasa Minangkabau &rarr; Bahasa Indonesia</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
+
+  <!-- JavaScript Logika & Router SPA -->
+  <script>
+    // ==================== WOTD DATA ====================
+    const WORD_OF_THE_DAY_LIST = [
+      { word: "Adolah", type: "Kopula", meaning: "Adalah", example: "Inyo adolah saurang guru.", translation: "Dia adalah seorang guru." },
+      { word: "Mambuek", type: "Verba", meaning: "Membuat", example: "Bundo mambuek randang di dapua.", translation: "Ibu membuat rendang di dapur." },
+      { word: "Manggaleh", type: "Verba", meaning: "Berdagang / Berjualan", example: "Apak manggaleh kain di pasa.", translation: "Ayah berjualan kain di pasar." },
+      { word: "Kironyo", type: "Adverbia", meaning: "Kiranya / Ternyata", example: "Kironyo inyo indak datang.", translation: "Ternyata dia tidak datang." },
+      { word: "Marupokan", type: "Kopula", meaning: "Merupakan", example: "Padi marupokan makanan pokok kito.", translation: "Padi merupakan makanan pokok kita." },
+      { word: "Saraso", type: "Adjektiva", meaning: "Serasa / Seperti", example: "Lamaknyo saraso di sarugo.", translation: "Enaknya serasa di surga." },
+      { word: "Baraia", type: "Adjektiva", meaning: "Berair", example: "Jalan ko baraia dek hujan.", translation: "Jalan ini berair karena hujan." },
+      { word: "Nagari", type: "Nomina", meaning: "Negeri / Desa / Kampung", example: "Ambo baliak ka nagari.", translation: "Saya pulang ke kampung." },
+      { word: "Sabalun", type: "Konjungsi", meaning: "Sebelum", example: "Makanlah sabalun barangkek.", translation: "Makanlah sebelum berangkat." },
+      { word: "Bakambang", type: "Verba", meaning: "Berkembang", example: "Budaya Minang bakambang taruih.", translation: "Budaya Minang berkembang terus." }
+    ];
+
+    let currentWotdIndex = -1;
+
+    function randomizeWotd() {
+      const wordEl = document.getElementById('wotd-word');
+      const typeEl = document.getElementById('wotd-type');
+      const meaningEl = document.getElementById('wotd-meaning');
+      const exampleEl = document.getElementById('wotd-example');
+      const translationEl = document.getElementById('wotd-translation');
+
+      // Fade out
+      const els = [wordEl, typeEl, meaningEl, exampleEl, translationEl];
+      els.forEach(el => el.classList.add('opacity-0'));
+
+      setTimeout(() => {
+        let nextIndex;
+        do {
+          nextIndex = Math.floor(Math.random() * WORD_OF_THE_DAY_LIST.length);
+        } while (nextIndex === currentWotdIndex);
+
+        currentWotdIndex = nextIndex;
+        const item = WORD_OF_THE_DAY_LIST[currentWotdIndex];
+
+        wordEl.textContent = item.word;
+        typeEl.textContent = item.type;
+        meaningEl.textContent = item.meaning;
+        exampleEl.textContent = `"${item.example}"`;
+        translationEl.textContent = `\u2192 ${item.translation}`;
+
+        // Fade in
+        els.forEach(el => el.classList.remove('opacity-0'));
+      }, 200);
+    }
+
+    // ==================== TOAST NOTIFICATION ====================
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+
+      toast.className = 'flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold transition-all duration-350 transform translate-y-2 opacity-0 bg-white border-slate-200 text-slate-800';
+
+      if (type === 'success') {
+        toast.className = 'flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold transition-all duration-350 transform translate-y-2 opacity-0 bg-emerald-50 border-emerald-100 text-emerald-800';
+        toast.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i> ${message}`;
+      } else if (type === 'error') {
+        toast.className = 'flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold transition-all duration-350 transform translate-y-2 opacity-0 bg-rose-50 border-rose-100 text-rose-800';
+        toast.innerHTML = `<i class="fa-solid fa-circle-exclamation text-rose-600 text-sm"></i> ${message}`;
+      } else {
+        toast.innerHTML = `<i class="fa-solid fa-circle-info text-indigo-500 text-sm"></i> ${message}`;
+      }
+
+      container.appendChild(toast);
+
+      // Trigger slide & fade in
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 20);
+
+      // Auto-destruct
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => {
+          toast.remove();
+        }, 350);
+      }, 3500);
+    }
+
+    // ==================== SPA ROUTING ====================
+    function switchView(viewId) {
+      const views = ['dashboard', 'spellchecker', 'translation', 'combo'];
+
+      if (!views.includes(viewId)) return;
+
+      // Hide all sections and update nav buttons class
+      views.forEach(v => {
+        const sec = document.getElementById(`view-${v}`);
+        if (sec) {
+          sec.classList.add('hidden');
+          sec.classList.remove('visible');
+        }
+        const link = document.getElementById(`nav-link-${v}`);
+        if (link) {
+          link.className = "nav-link px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors flex items-center gap-1.5";
+        }
+      });
+
+      // Show selected section
+      const activeSec = document.getElementById(`view-${viewId}`);
+      if (activeSec) {
+        activeSec.classList.remove('hidden');
+        // Force browser layout reflow to allow transition
+        void activeSec.offsetWidth;
+        activeSec.classList.add('visible');
+      }
+
+      // Mark active link
+      const activeLink = document.getElementById(`nav-link-${viewId}`);
+      if (activeLink) {
+        activeLink.className = "nav-link px-3 py-2 text-sm font-semibold text-indigo-600 bg-indigo-50/70 rounded-lg transition-colors flex items-center gap-1.5";
+      }
+
+      // Update mobile navigation select if applicable
+      const select = document.getElementById('mobile-nav-select');
+      if (select) {
+        select.value = viewId;
+      }
+
+      // Update pathname without reloading
+      const targetPath = viewId === 'dashboard' ? '/' : `/${viewId}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ view: viewId }, '', targetPath);
+      }
+    }
+
+    // Handle back & forward navigation buttons
+    window.addEventListener('popstate', (e) => {
+      const path = window.location.pathname.replace('/', '');
+      const view = ['dashboard', 'spellchecker', 'translation', 'combo'].includes(path) ? path : 'dashboard';
+
+      // Switch view without pushState loop
+      const views = ['dashboard', 'spellchecker', 'translation', 'combo'];
+      views.forEach(v => {
+        const sec = document.getElementById(`view-${v}`);
+        if (sec) {
+          sec.classList.add('hidden');
+          sec.classList.remove('visible');
+        }
+        const link = document.getElementById(`nav-link-${v}`);
+        if (link) {
+          link.className = "nav-link px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors flex items-center gap-1.5";
+        }
+      });
+
+      const activeSec = document.getElementById(`view-${view}`);
+      if (activeSec) {
+        activeSec.classList.remove('hidden');
+        void activeSec.offsetWidth;
+        activeSec.classList.add('visible');
+      }
+      const activeLink = document.getElementById(`nav-link-${view}`);
+      if (activeLink) {
+        activeLink.className = "nav-link px-3 py-2 text-sm font-semibold text-indigo-600 bg-indigo-50/70 rounded-lg transition-colors flex items-center gap-1.5";
+      }
+      const select = document.getElementById('mobile-nav-select');
+      if (select) {
+        select.value = view;
+      }
+    });
+
+    // ==================== ALGORITHM SELECTION CONTROLS ====================
+    function handleAlgoChange(radioInput) {
+      // Find all pills in the same group and clean selected class
+      const name = radioInput.getAttribute('name');
+      const radioGroup = document.querySelectorAll(`input[name="${name}"]`);
+
+      radioGroup.forEach(radio => {
+        const label = radio.closest('.algo-pill');
+        if (label) {
+          label.classList.remove('selected');
+        }
+      });
+
+      // Highlight current selected
+      const currentLabel = radioInput.closest('.algo-pill');
+      if (currentLabel) {
+        currentLabel.classList.add('selected');
+      }
+    }
+
+    function getSelectedAlgorithm(groupName) {
+      const checked = document.querySelector(`input[name="${groupName}"]:checked`);
+      return checked ? checked.value : 'levenshtein';
+    }
+
+    // ==================== UI HELPERS ====================
+    function updateCharCount(textareaId, countElId) {
+      const ta = document.getElementById(textareaId);
+      const counter = document.getElementById(countElId);
+      if (!ta || !counter) return;
+
+      const text = ta.value;
+      const charCount = text.length;
+      const wordCount = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+
+      if (countElId.includes('count')) {
+        counter.textContent = `${charCount} karakter &nbsp;&middot;&nbsp; ${wordCount} kata`;
+      } else {
+        counter.textContent = `${charCount} karakter`;
+      }
+    }
+
+    function clearText(textareaId, countElId) {
+      const ta = document.getElementById(textareaId);
+      if (ta) ta.value = '';
+
+      updateCharCount(textareaId, countElId);
+
+      // Special clear adjustments
+      if (textareaId === 'spell-input') {
+        document.getElementById('spell-diff-container').innerHTML = '<span class="text-slate-400 italic">Hasil visualisasi perbaikan ejaan akan tampil di sini...</span>';
+        document.getElementById('spell-clean-output').value = '';
+        const copyBtn = document.getElementById('spell-copy-btn');
+        copyBtn.disabled = true;
+        copyBtn.className = "px-4 py-1.5 border border-slate-200 bg-slate-50 text-slate-400 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-not-allowed";
+        document.getElementById('spell-status-badge').textContent = "Menunggu input...";
+        document.getElementById('spell-status-badge').className = "flex items-center gap-1 text-[10px] bg-slate-100 text-slate-500 px-2.5 py-0.5 rounded-full font-medium";
+      } else if (textareaId === 'trans-input') {
+        document.getElementById('trans-output').value = '';
+        const copyBtn = document.getElementById('trans-copy-btn');
+        copyBtn.disabled = true;
+        copyBtn.className = "px-4 py-1.5 border border-slate-200 bg-slate-50 text-slate-400 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-not-allowed";
+        document.getElementById('trans-status-badge').textContent = "Menunggu terjemahan...";
+        document.getElementById('trans-status-badge').className = "flex items-center gap-1 text-[10px] bg-slate-100 text-slate-500 px-2.5 py-0.5 rounded-full font-medium";
+      } else if (textareaId === 'combo-input') {
+        document.getElementById('combo-diff-container').innerHTML = '<span class="text-slate-400 italic">Hasil perbaikan kata typo akan di-highlight di sini...</span>';
+        document.getElementById('combo-clean-output').value = '';
+        document.getElementById('combo-trans-output').value = '';
+
+        document.getElementById('combo-spell-badge').textContent = "Ready";
+        document.getElementById('combo-spell-badge').className = "text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium";
+        document.getElementById('combo-trans-badge').textContent = "Ready";
+        document.getElementById('combo-trans-badge').className = "text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium";
+
+        const copySpell = document.getElementById('combo-spell-copy-btn');
+        const copyTrans = document.getElementById('combo-trans-copy-btn');
+
+        copySpell.disabled = true;
+        copySpell.className = "px-3.5 py-1.5 border border-slate-200 text-slate-400 bg-slate-50 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-1.5";
+        copyTrans.disabled = true;
+        copyTrans.className = "px-3.5 py-1.5 border border-slate-200 text-slate-400 bg-slate-50 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-1.5";
+      }
+
+      showToast("Teks dibersihkan.", "info");
+    }
+
+    function copyResult(inputSourceId) {
+      const el = document.getElementById(inputSourceId);
+      if (!el || !el.value) return;
+
+      navigator.clipboard.writeText(el.value).then(() => {
+        showToast("Teks disalin ke papan klip!", "success");
+      }).catch(err => {
+        showToast("Gagal menyalin teks.", "error");
+      });
+    }
+
+    // ==================== GENERATE DIFF HIGHLIGHTING ====================
+    function generateDiffHtml(originalText, correctedText) {
+      // Tokenize by word-boundaries and keep spaces & punctuation
+      const tokenize = (text) => text.match(/\b\w+\b|[^\w\s]|\s+/g) || [];
+      const origTokens = tokenize(originalText);
+      const corrTokens = tokenize(correctedText);
+
+      let html = '';
+      let corrIndex = 0;
+
+      for (let i = 0; i < origTokens.length; i++) {
+        const orig = origTokens[i];
+
+        // If whitespace
+        if (/^\s+$/.test(orig)) {
+          html += orig;
+          continue;
+        }
+
+        // If punctuation
+        if (!/^\w+$/.test(orig)) {
+          html += orig;
+          continue;
+        }
+
+        // Move corrIndex to the next word token
+        while (corrIndex < corrTokens.length && /^\s+$/.test(corrTokens[corrIndex])) {
+          corrIndex++;
+        }
+
+        if (corrIndex < corrTokens.length) {
+          const corr = corrTokens[corrIndex];
+          if (orig.toLowerCase() !== corr.toLowerCase()) {
+            // Highlighting of corrected word with a hover tooltip displaying the original typo below the word
+            html += `<span class="bg-emerald-100 text-emerald-800 border-b-2 border-emerald-400 px-1 rounded cursor-help group relative inline-block align-baseline font-semibold transition-all hover:bg-emerald-200">${corr}<span class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute z-20 top-full left-1/2 transform -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2.5 rounded-lg shadow-xl whitespace-nowrap mt-1.5 font-normal tracking-wide"><span class="absolute border-4 border-transparent border-b-slate-800 -top-2 left-1/2 -translate-x-1/2"></span>Semula: <span class="line-through text-rose-300 font-medium">${orig}</span></span></span>`;
+          } else {
+            html += corr;
+          }
+          corrIndex++;
+        } else {
+          html += orig;
+        }
+      }
+      return html;
+    }
+
+    // ==================== CORE ACTIONS & API CALLS ====================
+
+    // SPELLCHECK
+    async function runSpellcheck() {
+      const inputText = document.getElementById('spell-input').value.trim();
+      if (!inputText) {
+        showToast("Teks input tidak boleh kosong.", "error");
+        return;
+      }
+
+      // UI state loading
+      const loadingOverlay = document.getElementById('spell-loading');
+      loadingOverlay.classList.remove('hidden');
+
+      const submitBtn = document.getElementById('spell-submit-btn');
+      submitBtn.disabled = true;
+
+      const algorithm = getSelectedAlgorithm('spell-algorithm');
+
+      try {
+        const response = await fetch('/spellcheck', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: inputText, algorithm: algorithm }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Koneksi server gagal (Status: ${response.status})`);
+        }
+
+        const data = await response.json();
+        const result = data.result || '';
+
+        // Render Diff
+        const diffHtml = generateDiffHtml(inputText, result);
+        document.getElementById('spell-diff-container').innerHTML = diffHtml;
+
+        // Save clean version to hidden input
+        document.getElementById('spell-clean-output').value = result;
+
+        // Enable copy button
+        const copyBtn = document.getElementById('spell-copy-btn');
+        copyBtn.disabled = false;
+        copyBtn.className = "px-4 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm active:scale-95";
+
+        // Update status badge
+        const badge = document.getElementById('spell-status-badge');
+        badge.textContent = "Selesai dianalisis";
+        badge.className = "flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-0.5 rounded-full font-semibold";
+
+        showToast("Analisis ejaan selesai.", "success");
+      } catch (err) {
+        showToast(err.message, "error");
+      } finally {
+        loadingOverlay.classList.add('hidden');
+        submitBtn.disabled = false;
+      }
+    }
+
+    // TRANSLATION
+    async function runTranslation() {
+      const inputText = document.getElementById('trans-input').value.trim();
+      if (!inputText) {
+        showToast("Teks input tidak boleh kosong.", "error");
+        return;
+      }
+
+      // UI Loading state
+      const loading = document.getElementById('trans-loading');
+      loading.classList.remove('hidden');
+
+      const submitBtn = document.getElementById('trans-submit-btn');
+      submitBtn.disabled = true;
+
+      const configChecked = document.querySelector('input[name="translate-config"]:checked');
+      const config = configChecked ? configChecked.value : 'higher';
+
+      try {
+        const response = await fetch('/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: inputText, config: config }),
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Error server: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const result = data.result || '';
+
+        document.getElementById('trans-output').value = result;
+
+        // Enable copy button
+        const copyBtn = document.getElementById('trans-copy-btn');
+        copyBtn.disabled = false;
+        copyBtn.className = "px-4 py-1.5 border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm active:scale-95";
+
+        // Update status badge
+        const badge = document.getElementById('trans-status-badge');
+        badge.textContent = "Selesai diterjemahkan";
+        badge.className = "flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-0.5 rounded-full font-semibold";
+
+        showToast("Terjemahan berhasil.", "success");
+      } catch (err) {
+        showToast(err.message, "error");
+      } finally {
+        loading.classList.add('hidden');
+        submitBtn.disabled = false;
+      }
+    }
+
+    // COMBO PIPELINE
+    async function runComboPipeline() {
+      const inputText = document.getElementById('combo-input').value.trim();
+      if (!inputText) {
+        showToast("Teks input tidak boleh kosong.", "error");
+        return;
+      }
+
+      const submitBtn = document.getElementById('combo-submit-btn');
+      submitBtn.disabled = true;
+
+      // ─── STEP A: Spellchecking ───
+      const spellLoading = document.getElementById('combo-loading-spell');
+      spellLoading.classList.remove('hidden');
+
+      const spellBadge = document.getElementById('combo-spell-badge');
+      spellBadge.textContent = "Memproses...";
+      spellBadge.className = "text-[9px] bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full font-medium";
+
+      const algorithm = document.getElementById('combo-algorithm').value;
+      let cleanedText = '';
+
+      try {
+        const spellResponse = await fetch('/spellcheck', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: inputText, algorithm: algorithm }),
+        });
+
+        if (!spellResponse.ok) {
+          throw new Error("Gagal melakukan koreksi ejaan.");
+        }
+
+        const spellData = await spellResponse.json();
+        cleanedText = spellData.result || '';
+
+        // Render Diff Visualizer
+        const diffHtml = generateDiffHtml(inputText, cleanedText);
+        document.getElementById('combo-diff-container').innerHTML = diffHtml;
+        document.getElementById('combo-clean-output').value = cleanedText;
+
+        // Copy button enable for spellcheck
+        const copySpell = document.getElementById('combo-spell-copy-btn');
+        copySpell.disabled = false;
+        copySpell.className = "px-3.5 py-1.5 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 bg-white rounded-xl text-xs font-semibold transition-all active:scale-95 flex items-center gap-1.5";
+
+        spellBadge.textContent = "Koreksi Selesai";
+        spellBadge.className = "text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full font-semibold";
+      } catch (err) {
+        spellBadge.textContent = "Koreksi Gagal";
+        spellBadge.className = "text-[9px] bg-rose-50 text-rose-700 border border-rose-100 px-2 py-0.5 rounded-full font-semibold";
+        showToast(err.message, "error");
+        spellLoading.classList.add('hidden');
+        submitBtn.disabled = false;
+        return;
+      } finally {
+        spellLoading.classList.add('hidden');
+      }
+
+      // ─── STEP B: Translation (using clean text) ───
+      const transLoading = document.getElementById('combo-loading-trans');
+      transLoading.classList.remove('hidden');
+
+      const transBadge = document.getElementById('combo-trans-badge');
+      transBadge.textContent = "Menerjemahkan...";
+      transBadge.className = "text-[9px] bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full font-medium";
+
+      const config = document.getElementById('combo-translate-config').value;
+
+      try {
+        const transResponse = await fetch('/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: cleanedText, config: config }),
+        });
+
+        if (!transResponse.ok) {
+          const errData = await transResponse.json().catch(() => ({}));
+          throw new Error(errData.error || "Gagal menerjemahkan teks.");
+        }
+
+        const transData = await transResponse.json();
+        const translatedResult = transData.result || '';
+
+        document.getElementById('combo-trans-output').value = translatedResult;
+
+        // Copy button enable for translation
+        const copyTrans = document.getElementById('combo-trans-copy-btn');
+        copyTrans.disabled = false;
+        copyTrans.className = "px-3.5 py-1.5 border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm active:scale-95";
+
+        transBadge.textContent = "Translasi Selesai";
+        transBadge.className = "text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full font-semibold";
+
+        showToast("Proses pipeline combo berhasil!", "success");
+      } catch (err) {
+        transBadge.textContent = "Translasi Gagal";
+        transBadge.className = "text-[9px] bg-rose-50 text-rose-700 border border-rose-100 px-2 py-0.5 rounded-full font-semibold";
+        showToast(err.message, "error");
+      } finally {
+        transLoading.classList.add('hidden');
+        submitBtn.disabled = false;
+      }
+    }
+
+    // ==================== INITIALIZATION ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      // Router path setup
+      const path = window.location.pathname.replace('/', '');
+      const initialView = ['dashboard', 'spellchecker', 'translation', 'combo'].includes(path) ? path : 'dashboard';
+
+      // Load selected view
+      switchView(initialView);
+
+      // Load first Word of the Day
+      randomizeWotd();
+    });
+  </script>
+</body>
+
+</html>
