@@ -11,6 +11,8 @@ load_dotenv()
 
 TRANSLATE_URL   = os.getenv("TRANSLATE_URL", "")
 NGROK_AUTH_TOKEN = os.getenv("NGROK_AUTH_TOKEN", "")
+print("TRANSLATE_URL", TRANSLATE_URL)
+print("NGROK_AUTH_TOKEN", NGROK_AUTH_TOKEN)
 
 app = Flask(__name__)
 
