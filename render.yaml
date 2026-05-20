@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: minang-translator
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn process:app
+    envVars:
+      - key: TRANSLATE_URL
+        value: https://bondless-quantum-tattle.ngrok-free.dev
